@@ -1,3 +1,9 @@
+import ddf.minim.*;
+
+AudioPlayer player;
+Minim minim;
+
+
 int maxEnemies = 20;
 int maxStars = 50;
 
@@ -13,11 +19,18 @@ void setup()
   frameRate(30);
   
   starfield = new Starfield();
+
+  minim = new Minim(this);
+  
+  // load a file, give the AudioPlayer buffers that are 2048 samples long
+  player = minim.loadFile("song.mp3", 2048);
+  // play the file
+//  player.play();
   
   noStroke();
   smooth();
   for (int i = 0; i < maxEnemies; i++) {
-    enemies[i] = new Enemy(random(width), random(height), i, enemies);
+    enemies[i] = new Enemy();
   }
 }
 
@@ -29,6 +42,13 @@ void draw()
   starfield.display();
 
   for (int i = 0; i < maxEnemies; i++) {
+    if (!enemies[i].isalive()) {
+      // maybe add another enemy
+      if (random(1) > .995) {
+        enemies[i] = new Enemy(random(width), -30, i, enemies);
+      }
+    }
+    
     enemies[i].collide();
     enemies[i].move();
     enemies[i].display();  
@@ -39,73 +59,58 @@ class Enemy {
   float x, y;
   float vx = 0;
   float vy = 0;
+  float phase = 0;
+  
   int id;
   Enemy[] others;
+  Boolean alive;
+ 
+  PImage a;
+  
+  Enemy() {
+    alive = false;
+  }
  
   Enemy(float xin, float yin, int idin, Enemy[] oin) {
     x = xin;
     y = yin;
     id = idin;
     others = oin;
+    alive = true;
+    
+    // For now, just use the sample image
+    a = loadImage("cathedral.jpg");  // Load the image into the program  
   } 
+
+  Boolean isalive() {
+    return alive;
+  }
   
   void collide() {
   }
-/*
-  void collide() {
-    for (int i = id + 1; i < numBalls; i++) {
-      float dx = others[i].x - x;
-      float dy = others[i].y - y;
-      float distance = sqrt(dx*dx + dy*dy);
-      float minDist = others[i].diameter/2 + diameter/2;
-      if (distance < minDist) { 
-        float angle = atan2(dy, dx);
-        float targetX = x + cos(angle) * minDist;
-        float targetY = y + sin(angle) * minDist;
-        float ax = (targetX - others[i].x) * spring;
-        float ay = (targetY - others[i].y) * spring;
-        vx -= ax;
-        vy -= ay;
-        others[i].vx += ax;
-        others[i].vy += ay;
-      }
-    }   
-  }
-*/
 
-/*
   void move() {
-    vy += gravity;
-    x += vx;
-    y += vy;
-    if (x + diameter/2 > width) {
-      x = width - diameter/2;
-      vx *= friction; 
-    }
-    else if (x - diameter/2 < 0) {
-      x = diameter/2;
-      vx *= friction;
-    }
-    if (y + diameter/2 > height) {
-      y = height - diameter/2;
-      vy *= friction; 
-    } 
-    else if (y - diameter/2 < 0) {
-      y = diameter/2;
-      vy *= friction;
-    }
-  }
-*/
-  void move() {
-    vy = 15;
+    if (alive) {
+      vy = scrollSpeed * 1.5;
+      vx = cos(phase) * 7;
     
-    x += vx;
-    y += vy;
+      phase += .05;
+      
+      x += vx;
+      y += vy;
+    }
+    
+    if (y > height) {
+      alive = false;
+    }
   }
 
   void display() {
-    fill(255, 204);
-    ellipse(x, y, 30, 30);
+    if (alive) {
+      image(a, x, y, 50, 40);
+//      fill(255, 204);
+//      ellipse(x, y, 30, 30);
+    }
   }
 }
 
