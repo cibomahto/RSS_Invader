@@ -11,7 +11,8 @@ float scrollSpeed = 1;
 
 Starfield starfield;
 
-Enemy[] enemies = new Enemy[maxEnemies];
+//Enemy[] enemies = new Enemy[maxEnemies];
+ArrayList enemies = new ArrayList();
 
 void setup()
 {
@@ -29,8 +30,9 @@ void setup()
   
   noStroke();
   smooth();
-  for (int i = 0; i < maxEnemies; i++) {
-    enemies[i] = new Enemy();
+//  for (int i = 0; i < maxEnemies; i++) {
+//    enemies.add(new Enemy());
+ //   enemies[i] = new Enemy();
   }
 }
 
@@ -41,77 +43,23 @@ void draw()
   starfield.move();
   starfield.display();
 
-  for (int i = 0; i < maxEnemies; i++) {
-    if (!enemies[i].isalive()) {
-      // maybe add another enemy
-      if (random(1) > .995) {
-        enemies[i] = new Enemy(random(width), -30, i, enemies);
-      }
+  if (enemies.size() < maxEnemies) {
+    if (random(1) > .995) {
+      enemy = new Enemy(random(width), -30, i, enemies);
     }
-    
-    enemies[i].collide();
-    enemies[i].move();
-    enemies[i].display();  
   }
-}
 
-class Enemy {
-  float x, y;
-  float vx = 0;
-  float vy = 0;
-  float phase = 0;
+
+  for (int i = 0; i < enemies.size(); i++) {
+    Enemy enemy = (Enemy) enemy.get(i);
+    
+    enemy.collide();
+    enemy.move();
+    enemy.display();  
+  }  
   
-  int id;
-  Enemy[] others;
-  Boolean alive;
- 
-  PImage a;
+  // Remove dead enemies
   
-  Enemy() {
-    alive = false;
-  }
- 
-  Enemy(float xin, float yin, int idin, Enemy[] oin) {
-    x = xin;
-    y = yin;
-    id = idin;
-    others = oin;
-    alive = true;
-    
-    // For now, just use the sample image
-    a = loadImage("cathedral.jpg");  // Load the image into the program  
-  } 
-
-  Boolean isalive() {
-    return alive;
-  }
-  
-  void collide() {
-  }
-
-  void move() {
-    if (alive) {
-      vy = scrollSpeed * 1.5;
-      vx = cos(phase) * 7;
-    
-      phase += .05;
-      
-      x += vx;
-      y += vy;
-    }
-    
-    if (y > height) {
-      alive = false;
-    }
-  }
-
-  void display() {
-    if (alive) {
-      image(a, x, y, 50, 40);
-//      fill(255, 204);
-//      ellipse(x, y, 30, 30);
-    }
-  }
 }
 
 class Starfield {
@@ -189,6 +137,62 @@ class Star {
     if (alive) {
       fill(255, 204);
       rect(x, y, s, s);
+    }
+  }
+}
+
+
+class Enemy {
+  float x, y;
+  float vx = 0;
+  float vy = 0;
+  float phase = 0;
+  
+  int id;
+  Enemy[] others;
+  Boolean alive;
+ 
+  PImage a;
+   
+  Enemy(float xin, float yin, int idin, Enemy[] oin) {
+    x = xin;
+    y = yin;
+    id = idin;
+    others = oin;
+    alive = true;
+    
+    // For now, just use the sample image
+    a = loadImage("cathedral.jpg");  // Load the image into the program  
+  } 
+
+  Boolean isalive() {
+    return alive;
+  }
+  
+  void collide() {
+  }
+
+  void move() {
+    if (alive) {
+      vy = scrollSpeed * 1.5;
+      vx = cos(phase) * 7;
+    
+      phase += .03;
+      
+      x += vx;
+      y += vy;
+    }
+    
+    if (y > height) {
+      alive = false;
+    }
+  }
+
+  void display() {
+    if (alive) {
+      image(a, x, y, 50, 40);
+//      fill(255, 204);
+//      ellipse(x, y, 30, 30);
     }
   }
 }
