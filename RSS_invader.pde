@@ -79,12 +79,18 @@ class EnemyLoader implements Runnable {
           String summary = content.replaceAll("\\<.*?>","");
           
           // Do a quick&dirty search for an image in the content
-          String imageURL = (content.replaceAll("\r\n|\r|\n.*","").replaceAll(".*?<img.*?src=\"","")).replaceAll("\".*","");
+//          String imageURL = (content.replaceAll("\r\n|\r|\n.*","").replaceAll(".*?<img.*?src=\"","")).replaceAll("\".*","");
+          
           
           if (imageURL.contains(".jpg")) {
             println(imageURL);
           }
           else {
+            println("couldn't find image in: -------------------");
+            println(content);
+            println("-------------------------------------------");
+            println(imageURL);
+            println("-------------------------------------------");
             imageURL = "";
           }
 
@@ -128,7 +134,7 @@ class EnemyLoader implements Runnable {
 void setup()
 {
   // Video bits
-  size(800,600);
+  size(600,800);
   frameRate(30);
   noStroke();
   smooth();
@@ -363,7 +369,8 @@ class Enemy {
   void move() {
     if (alive) {
       vy = scrollSpeed * 1.5;
-      vx = cos(phase) * 7;
+//      vx = cos(phase) * 7;
+      vx = 0;
     
       phase += .03;
       
