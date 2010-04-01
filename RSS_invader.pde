@@ -2,6 +2,8 @@ import com.creatingwithcode.greader.GoogleReaderClient;
 import com.creatingwithcode.greader.RecentItemsFeed;
 import com.creatingwithcode.greader.FeedItem;
 
+import java.util.concurrent.*;
+
 import ddf.minim.*;
 
 AudioPlayer player;
@@ -24,10 +26,23 @@ Thread loadThread;
 
 
 class EnemyLoader implements Runnable {
-  ArrayList working;    // RSS items that are still loading (image, etc)
-  ArrayList ready;      // RSS items that are ready to go
+  ArrayList working = new ArrayList();    // RSS items that are still loading (image, etc)
+  ArrayList ready = new ArrayList();      // RSS items that are ready to go
+
+  // Queue holding the enemies that are ready to shove out the door
+  private LinkedBlockingQueue  readyQueue = new LinkedBlockingQueue();
+
 
   GoogleReaderClient grc;
+  
+  public boolean enemyAvailable() {
+    return (readyQueue.size() > 0);
+  }
+  
+  public Enemy getNextEnemy() {
+    return (Enemy) readyQueue.poll(); 
+  }
+    
   
   // This method is called when the thread runs
   public void run() {
@@ -39,30 +54,31 @@ class EnemyLoader implements Runnable {
 
     RecentItemsFeed rif;
     rif = grc.getRecentItemsFeed();
-  
+
     Iterator rifi = rif.getItems().iterator();
     while(rifi.hasNext()){
       FeedItem fi = (FeedItem) rifi.next();
-
-      println(fi.getTitle());
       
       // Build a new enemy, and stuff it with our info
 //      Enemy newEnemy = new Enemy(int(random(width)), -30, fi.getId(), enemies);
       Enemy newEnemy = new Enemy(int(random(width)), -30, 0, enemies);
 
-      newEnemy.setTitle(fi.getTitle());
-
+      if ( fi.getTitle() != null ) {
+        newEnemy.setTitle(fi.getTitle());
+      }
+      else {
+//        println("  no title");
+      }
+      
       if ( fi.getSummary() != null 
            && fi.getSummary().containsKey("content") ) {
-             
-        println(fi.getSummary().get("content"));
         newEnemy.setSummary(fi.getSummary().get("content"));
       }
       else {
-        println("  no content");
+//        println("  no content");
       }
-      
-//      newEnemy.addTitle(fi.getTitle());
+
+      newEnemy.setImageURL("void");
       
       working.add(newEnemy);
     }
@@ -73,12 +89,24 @@ class EnemyLoader implements Runnable {
       } catch( InterruptedException e ) {
         println("Interrupted Exception caught");
       }
+      
+      // Go through the list of enemies that were still processing, and clear out
+      // any that are finished.
+      for (int i = working.size() - 1; i >= 0; i--) {
+        Enemy enemy = (Enemy) working.get(i);
+        
+        // If the enemy has finished loading, move it to the ready list
+        if( enemy.isLoaded() ) {
+          try{ 
+            readyQueue.put(enemy);
+          } catch( InterruptedException e ) {
+            println("Interrupted Exception caught");
+          }
+          working.remove(i);
+        }
+      }
     }
   }
-  
-//  Enemy getNewEnemy() {
-//    if (ready.size() > 0)
-//  }
 }
 
 
@@ -100,7 +128,7 @@ void setup()
 //  player.play();
 
   enemyLoader = new EnemyLoader();
-  loadThread=new Thread(enemyLoader);
+  loadThread = new Thread(enemyLoader);
 
   loadThread.start();
   
@@ -125,9 +153,9 @@ void draw()
 
   // Create new enemies
   if (enemies.size() < maxEnemies) {
-    if (random(1) > .95) {
-      enemies.add(new Enemy(int(random(width)), -30, 0, enemies));
-//      enemy = new Enemy(random(width), -30, i, enemies);
+    // If it's time to add a new enemy, look for one
+    if (random(1) > .95 && enemyLoader.enemyAvailable()) {
+      enemies.add(enemyLoader.getNextEnemy());
     }
   }
 
@@ -141,7 +169,7 @@ void draw()
   
   // TODO: Remove dead enemies
   for (int i = enemies.size() - 1; i >= 0; i-- ) {
-    if( !((Enemy) enemies.get(i)).isalive() ) {
+    if( !((Enemy) enemies.get(i)).isAlive() ) {
       enemies.remove(i);
     }
   }
@@ -171,7 +199,7 @@ class Starfield {
   
   void move() {
     for (int i = 0; i < maxStars; i++) {
-      if (stars[i].isalive()) {      
+      if (stars[i].isAlive()) {      
         stars[i].move();
       }
       else {
@@ -228,7 +256,7 @@ class Star {
     }
   }
   
-  boolean isalive() {
+  boolean isAlive() {
     return alive;
   }
 
@@ -251,7 +279,9 @@ class Enemy {
   
   int id;
   ArrayList others;
-  boolean alive;
+  
+  boolean loaded;    // All resources are loaded, enemy is ready to deploy
+  boolean alive;     // Enemy is currently active
  
   PImage a;
 
@@ -269,6 +299,10 @@ class Enemy {
     id = idin;
     others = oin;
     alive = true;
+    
+    a = loadImage("cathedral.jpg");  // Load the image into the program 
+
+    loaded = true;
   } 
 
   void setTitle(String title_) {
@@ -284,11 +318,15 @@ class Enemy {
     
     // TODO: Set thing to load image asset
     // For now, just use the sample image
-    a = loadImage("cathedral.jpg");  // Load the image into the program 
+//    a = loadImage("cathedral.jpg");  // Load the image into the program 
   }
 
-  boolean isalive() {
+  boolean isAlive() {
     return alive;
+  }
+
+  boolean isLoaded() {
+    return loaded;
   }
   
   void collide() {
@@ -298,6 +336,7 @@ class Enemy {
   void hit() {
     // TODO: Add death animation
     alive = false;
+    println(title);
   }
 
   void move() {
@@ -349,7 +388,7 @@ class Particle {
       // Particles only collide with enemies
       for (int i = 0; i < enemies.size(); i++) {
         Enemy enemy = (Enemy) enemies.get(i);
-        if (enemy.isalive()) {
+        if (enemy.isAlive()) {
 //          if( (x - enemy.x <= enemy.w) && (y - enemy.y <= enemy.h)) {
           if( (x >= enemy.x) && (x <= enemy.x + enemy.w) && (y >= enemy.y) && (y <= enemy.y + enemy.h)) {
             enemy.hit();
