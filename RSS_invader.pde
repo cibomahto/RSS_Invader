@@ -53,37 +53,52 @@ class EnemyLoader implements Runnable {
 
 
     RecentItemsFeed rif;
-    rif = grc.getRecentItemsFeed();
-
-    Iterator rifi = rif.getItems().iterator();
-    while(rifi.hasNext()){
-      FeedItem fi = (FeedItem) rifi.next();
-      
-      // Build a new enemy, and stuff it with our info
-//      Enemy newEnemy = new Enemy(int(random(width)), -30, fi.getId(), enemies);
-      Enemy newEnemy = new Enemy(int(random(width)), -30, 0, enemies);
-
-      if ( fi.getTitle() != null ) {
-        newEnemy.setTitle(fi.getTitle());
-      }
-      else {
-//        println("  no title");
-      }
-      
-      if ( fi.getSummary() != null 
-           && fi.getSummary().containsKey("content") ) {
-        newEnemy.setSummary(fi.getSummary().get("content"));
-      }
-      else {
-//        println("  no content");
-      }
-
-      newEnemy.setImageURL("void");
-      
-      working.add(newEnemy);
-    }
+    Iterator rifi;
+    
 
     while(true) {
+      // if we've got less than 20 enemies around, look for some more
+      // TOOD: only try this once in a while?
+      if (working.size() + readyQueue.size() < 10) {
+        rif = grc.getRecentItemsFeed();
+        rifi = rif.getItems().iterator();
+        
+        while(rifi.hasNext()){
+          FeedItem fi = (FeedItem) rifi.next();
+      
+          String title = (String) ((fi.getTitle() == null) ? "" :
+                                   fi.getTitle());
+          
+//          String summary = (String) ((fi.getSummary() == null) ? "" :
+//                                     fi.getSummary().get("content"));
+                                     
+          String content = (String) ((fi.getContent() == null) ? "" :
+                                     fi.getContent().get("content"));
+          
+          // Content should contain the text blurb and images in an HTML format.
+          String summary = content.replaceAll("\\<.*?>","");
+          
+          // Do a quick&dirty search for an image in the content
+          String imageURL = (content.replaceAll("\r\n|\r|\n.*","").replaceAll(".*?<img.*?src=\"","")).replaceAll("\".*","");
+          
+          if (imageURL.contains(".jpg")) {
+            println(imageURL);
+          }
+          else {
+            imageURL = "";
+          }
+
+          // Build a new enemy, and stuff it with our info
+          Enemy newEnemy = new Enemy(int(random(width)), -30, 0, enemies);
+          
+          newEnemy.setTitle(title);
+          newEnemy.setSummary(summary);
+          newEnemy.setImageURL(imageURL);
+      
+          working.add(newEnemy);
+        }
+      }
+      
       try{ 
         Thread.sleep(10);
       } catch( InterruptedException e ) {
@@ -293,14 +308,14 @@ class Enemy {
     x = xin;
     y = yin;
     
-    w = 50;
-    h = 40;
+    w = 80;
+    h = 60;
     
     id = idin;
     others = oin;
     alive = true;
     
-    a = loadImage("cathedral.jpg");  // Load the image into the program 
+//    a = loadImage("cathedral.jpg");  // Load the image into the program 
 
     loaded = true;
   } 
@@ -314,11 +329,17 @@ class Enemy {
   }
   
   void setImageURL(String imageURL_) {
-    imageURL = imageURL;
+    imageURL = imageURL_;
     
     // TODO: Set thing to load image asset
     // For now, just use the sample image
-//    a = loadImage("cathedral.jpg");  // Load the image into the program 
+    if (imageURL == "") {
+      // use a default
+      a = loadImage("invader.jpg");  // Load the image into the program 
+    }
+    else {
+      a = loadImage(imageURL);
+    }
   }
 
   boolean isAlive() {
@@ -364,28 +385,54 @@ class Enemy {
 
 
 class Particle {
-  int x = 0;
-  int y = 0;
-  
-  float vx = 0;
-  float vy = 0;
-  
   boolean alive;
   
   // animation phase
   float phase = 0;
   
-  Particle(int xin, int yin, float vxin, float vyin, ArrayList oin) {
+  Particle() {
+    alive = true;
+  }
+  
+  boolean isAlive() {
+    return alive;
+  }
+  
+  void collide() {
+    // Do you collide with anything?
+  }
+
+  void move() {
+    // Compute movements here
+  }
+
+  void display() {
+    // Show thyself!
+  }  
+}
+
+
+class phaserParticle extends Particle {
+  int x = 0;
+  int y = 0;
+  
+  float vx = 0;
+  float vy = 0;
+
+  
+  phaserParticle(int xin, int yin, float vxin, float vyin) {
     x = xin;
     y = yin;
     vx = vxin;
     vy = vyin;
-    alive = true;
   }
+  
   
   void collide() {
     if (alive) {
       // Particles only collide with enemies
+      // Particles are considered point sources!
+      
       for (int i = 0; i < enemies.size(); i++) {
         Enemy enemy = (Enemy) enemies.get(i);
         if (enemy.isAlive()) {
@@ -400,6 +447,7 @@ class Particle {
     }
   }
 
+  
   void move() {
     if (alive) {
       x += vx;
@@ -413,7 +461,7 @@ class Particle {
     
     phase += .5;
   }
-
+  
   void display() {
     if (alive) {
       fill(255,0,0,190);
@@ -421,7 +469,7 @@ class Particle {
       fill(220,0,0,10);
       ellipse(x, y, 15+4*cos(phase), 15+4*cos(phase));
     }
-  }  
+  }    
 }
 
 
@@ -438,20 +486,41 @@ class PlayerShip {
   int dy = 0; // -1, 0, 1
   int v = w / 12;
   
+  int hWheel = 0;  // Hue wheel
+  
   PlayerShip(){
      x = (width - w) / 2;
      y = ((y_max - h) / 2) + (height - y_max);
   }
   
   void draw() {
+    // First, make sure ship is still on-screen
     x = (int)((float) x + dx * v);
     if(x > (width - w)) { x = (width - w); }
     if(x < 0) { x = 0; }
     y = (int)((float)y + dy * v);
     if(y > (height - h)) { y = (height - h); }
     if(y < (height - y_max)) { y = (height - y_max); }
-    fill(255);
-    rect(x,y,w,h);
+
+    // then, draw!
+    colorMode(HSB, 255);
+    color c = color(hWheel, 126, 255);
+    fill(c);
+ 
+    beginShape();
+    vertex(x, y+h);
+    vertex(x+w, y+h);
+    vertex(x+w/2, y);
+    endShape(CLOSE);
+    
+    // reset to RGB draw mode
+    colorMode(RGB, 255);
+    
+    // Increment the color wheel
+    hWheel = (hWheel + 1) % 255;
+    
+//    fill(255);
+//    rect(x,y,w,h);
   }
   
 }
@@ -518,6 +587,6 @@ void keyReleased(){
   else if (key == ' ') {
     // Fire!  She screamed!
     // TODO: Compute center of ship correctly
-    particles.add(new Particle(ship.x + 25, ship.y, 0, -14, particles));
+    particles.add(new phaserParticle(ship.x + 32, ship.y, 0 , -14));
   }
 }
