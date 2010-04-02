@@ -55,13 +55,16 @@ class EnemyLoader implements Runnable {
   public void run() {
     // Google reader client bits
     
-    // Replace this with you username/password
-//    grc = new GoogleReaderClient("username", "password");
 
+    // Put your name and password into a text file, that won't be checked in :-)
+    String[] credentials = loadStrings("credentials.txt");
+    grc = new GoogleReaderClient(credentials[0], credentials[1]);
+
+    // or, replace this with you username/password
+//    grc = new GoogleReaderClient("username", "password");
 
     RecentItemsFeed rif;
     Iterator rifi;
-    
 
     while(true) {
       // if we've got less than 20 enemies around, look for some more
@@ -193,10 +196,8 @@ void setup()
   particles = new ArrayList();
   ship = new PlayerShip();
 
-//  for (int i = 0; i < maxEnemies; i++) {
-//    enemies.add(new Enemy());
-//    enemies[i] = new Enemy();
-//  }
+  // show title screen
+  particles.add(new textParticle("RSS Invaders", new PVector(100,250), titleFont, new PVector(0,0), new PVector(0,0), 255));
 }
 
 void draw()
@@ -206,11 +207,20 @@ void draw()
   starfield.move();
   starfield.display();
 
-  if (textCount < 200) {
-    textCount++;
-    textFont(titleFont);
-    text("RSS Invaders", 100, 250); 
-    textFont(fountainFont);
+  // do the particles
+  for (int i = 0; i < particles.size(); i++) {
+    Particle particle = (Particle) particles.get(i);
+    
+    particle.collide();
+    particle.move();
+    particle.display();  
+  }
+
+  // Remove dead particles
+  for (int i = particles.size() - 1; i >= 0; i-- ) {
+    if( !((Particle) particles.get(i)).isAlive() ) {
+      particles.remove(i);
+    }
   }
 
   // Create new enemies
@@ -233,22 +243,6 @@ void draw()
   for (int i = enemies.size() - 1; i >= 0; i-- ) {
     if( !((Enemy) enemies.get(i)).isAlive() ) {
       enemies.remove(i);
-    }
-  }
-
-  // do the particles
-  for (int i = 0; i < particles.size(); i++) {
-    Particle particle = (Particle) particles.get(i);
-    
-    particle.collide();
-    particle.move();
-    particle.display();  
-  }
-
-  // TODO: Remove dead enemies
-  for (int i = particles.size() - 1; i >= 0; i-- ) {
-    if( !((Particle) particles.get(i)).isAlive() ) {
-      particles.remove(i);
     }
   }
 
@@ -412,8 +406,10 @@ class Enemy {
     enemyExplodeSound.trigger();
     PVector location = new PVector(x, y);
     
+    // Draw up to 400 words from the summary text
     String summaryText[] = summary.split(" ");
-    for (int i = 0; i < summaryText.length; i++) {
+    int textLength = min(summaryText.length, 400);
+    for (int i = 0; i < textLength; i++) {
       particles.add(new textParticle(summaryText[i], location));
     }
       
@@ -483,15 +479,25 @@ class textParticle extends Particle {
   float timer;
   String s;
   
-  // Another constructor (the one we are using here)
+  PFont font;
+  
   textParticle(String _s, PVector l) {
     s = _s;
-//    acc = new PVector(0,0.05,0);
     acc = new PVector(0,0.12,0);
     vel = new PVector(random(-2.5,2.5),random(-6,-2),0);
     loc = l.get();
     timer = 150.0;
   }
+
+  textParticle(String _s, PVector l, PFont font_, PVector acc_, PVector vel_, float timer_) {
+    font = font_;
+    s = _s;
+    acc = acc_;
+    vel = vel_;
+    loc = l.get();
+    timer = timer_;
+  }
+
 
   // Method to update location
   void move() {
@@ -505,7 +511,17 @@ class textParticle extends Particle {
     ellipseMode(CENTER);
     stroke(255,timer);
     fill(255,timer);
+    
+    if (font != null) {
+      textFont(font);
+    }
+    
     text(s, loc.x, loc.y); 
+    
+    if (font != null) {
+      // TODO: Context save/restore?
+      textFont(fountainFont);
+    }
   }
   
   boolean isAlive() {
