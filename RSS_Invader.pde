@@ -58,6 +58,7 @@ class EnemyLoader implements Runnable {
     // Replace this with you username/password
 //    grc = new GoogleReaderClient("username", "password");
 
+
     RecentItemsFeed rif;
     Iterator rifi;
     
