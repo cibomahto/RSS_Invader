@@ -2,16 +2,21 @@ import com.creatingwithcode.greader.GoogleReaderClient;
 import com.creatingwithcode.greader.RecentItemsFeed;
 import com.creatingwithcode.greader.FeedItem;
 
+import java.util.regex.*;
 import java.util.concurrent.*;
 
 import ddf.minim.*;
 
-AudioPlayer player;
+AudioPlayer bgmusic;
+AudioSample zapSound;
+AudioSample enemyExplodeSound;
 Minim minim;
 PlayerShip ship;
 
 int maxEnemies = 20;
 int maxStars = 50;
+
+int textCount  = 0;
 
 float scrollSpeed = 1;
 
@@ -24,6 +29,8 @@ ArrayList particles;
 EnemyLoader enemyLoader;
 Thread loadThread;
 
+PFont fountainFont;
+PFont titleFont;
 
 class EnemyLoader implements Runnable {
   ArrayList working = new ArrayList();    // RSS items that are still loading (image, etc)
@@ -51,7 +58,6 @@ class EnemyLoader implements Runnable {
     // Replace this with you username/password
 //    grc = new GoogleReaderClient("username", "password");
 
-
     RecentItemsFeed rif;
     Iterator rifi;
     
@@ -69,25 +75,31 @@ class EnemyLoader implements Runnable {
           String title = (String) ((fi.getTitle() == null) ? "" :
                                    fi.getTitle());
           
-//          String summary = (String) ((fi.getSummary() == null) ? "" :
-//                                     fi.getSummary().get("content"));
-                                     
-          String content = (String) ((fi.getContent() == null) ? "" :
-                                     fi.getContent().get("content"));
+          // Try for a summary first, if it is blank, go for the content
+          String summary = (String) ((fi.getSummary() == null) ? "" :
+                                     fi.getSummary().get("content"));
+
+          if (summary=="") {                                     
+            summary = (String) ((fi.getContent() == null) ? "" :
+                                fi.getContent().get("content"));
+          }
+          
           
           // Content should contain the text blurb and images in an HTML format.
-          String summary = content.replaceAll("\\<.*?>","");
+          String description = summary.replaceAll("\\<.*?>","");
           
-          // Do a quick&dirty search for an image in the content
-//          String imageURL = (content.replaceAll("\r\n|\r|\n.*","").replaceAll(".*?<img.*?src=\"","")).replaceAll("\".*","");
+          // Do a quick&dirty search for an image in the content          
+          String imageURL = (summary.replaceAll("\r\n|\r|\n","").replaceFirst(".*?<img.*?src=\"","")).replaceAll("\".*","");
           
           
-          if (imageURL.contains(".jpg")) {
-            println(imageURL);
+          if (imageURL.contains(".jpg") || imageURL.contains(".png")) {
+//            println(imageURL);
           }
           else {
             println("couldn't find image in: -------------------");
-            println(content);
+            println(title);
+            println("-------------------------------------------");
+            println(summary);
             println("-------------------------------------------");
             println(imageURL);
             println("-------------------------------------------");
@@ -95,13 +107,20 @@ class EnemyLoader implements Runnable {
           }
 
           // Build a new enemy, and stuff it with our info
-          Enemy newEnemy = new Enemy(int(random(width)), -30, 0, enemies);
+          Enemy newEnemy = new Enemy(int(random(width-80)), -60, 0, enemies);
           
           newEnemy.setTitle(title);
-          newEnemy.setSummary(summary);
+          newEnemy.setSummary(description);
           newEnemy.setImageURL(imageURL);
       
-          working.add(newEnemy);
+//          working.add(newEnemy);
+
+          try{ 
+            readyQueue.put(newEnemy);
+          } catch( InterruptedException e ) {
+            println("Interrupted Exception caught");
+          }
+
         }
       }
       
@@ -139,14 +158,28 @@ void setup()
   noStroke();
   smooth();
 
+  // font bits
+  PFont font;
+  // http://www.1001freefonts.com/ComicBookCommando.php
+  fountainFont = createFont("Comicv3", 12);
+  titleFont = createFont("Comicv3", 64); 
+  textFont(fountainFont);
+
   // Audio bits
 
   minim = new Minim(this);
   
   // load a file, give the AudioPlayer buffers that are 2048 samples long
-  player = minim.loadFile("song.mp3", 2048);
+  
+  // Song is 'Flight of Dragons' by Nintendude: http://8bitcollective.com/members/Nintendude/
+  bgmusic = minim.loadFile("flight_of_dragon.mp3", 2048);
   // play the file
-//  player.play();
+  bgmusic.play();
+
+  //sounds from http://www.atomsplitteraudio.com/info.php?id=25
+  zapSound = minim.loadSample("Zap FX 007.wav", 2048);
+
+  enemyExplodeSound = minim.loadSample("Noise 002.wav", 2048);
 
   enemyLoader = new EnemyLoader();
   loadThread = new Thread(enemyLoader);
@@ -171,6 +204,13 @@ void draw()
   
   starfield.move();
   starfield.display();
+
+  if (textCount < 200) {
+    textCount++;
+    textFont(titleFont);
+    text("RSS Invaders", 100, 250); 
+    textFont(fountainFont);
+  }
 
   // Create new enemies
   if (enemies.size() < maxEnemies) {
@@ -203,6 +243,14 @@ void draw()
     particle.move();
     particle.display();  
   }
+
+  // TODO: Remove dead enemies
+  for (int i = particles.size() - 1; i >= 0; i-- ) {
+    if( !((Particle) particles.get(i)).isAlive() ) {
+      particles.remove(i);
+    }
+  }
+
   
   ship.draw();
 }
@@ -321,8 +369,6 @@ class Enemy {
     others = oin;
     alive = true;
     
-//    a = loadImage("cathedral.jpg");  // Load the image into the program 
-
     loaded = true;
   } 
 
@@ -341,7 +387,7 @@ class Enemy {
     // For now, just use the sample image
     if (imageURL == "") {
       // use a default
-      a = loadImage("invader.jpg");  // Load the image into the program 
+      a = loadImage("invader.png");  // Load the image into the program 
     }
     else {
       a = loadImage(imageURL);
@@ -362,13 +408,20 @@ class Enemy {
   // enemy has been hit
   void hit() {
     // TODO: Add death animation
+    enemyExplodeSound.trigger();
+    PVector location = new PVector(x, y);
+    
+    String summaryText[] = summary.split(" ");
+    for (int i = 0; i < summaryText.length; i++) {
+      particles.add(new textParticle(summaryText[i], location));
+    }
+      
     alive = false;
-    println(title);
   }
 
   void move() {
     if (alive) {
-      vy = scrollSpeed * 1.5;
+      vy = scrollSpeed * 2;
 //      vx = cos(phase) * 7;
       vx = 0;
     
@@ -385,6 +438,10 @@ class Enemy {
 
   void display() {
     if (alive) {
+      if (a == null) {
+        a = loadImage("invader.png");  // Load the image into the program 
+      }
+
       image(a, x, y, w, h);
     }
   }
@@ -416,6 +473,47 @@ class Particle {
   void display() {
     // Show thyself!
   }  
+}
+
+class textParticle extends Particle {
+  PVector loc;
+  PVector vel;
+  PVector acc;
+  float timer;
+  String s;
+  
+  // Another constructor (the one we are using here)
+  textParticle(String _s, PVector l) {
+    s = _s;
+//    acc = new PVector(0,0.05,0);
+    acc = new PVector(0,0.12,0);
+    vel = new PVector(random(-2.5,2.5),random(-6,-2),0);
+    loc = l.get();
+    timer = 150.0;
+  }
+
+  // Method to update location
+  void move() {
+    vel.add(acc);
+    loc.add(vel);
+    timer -= 1.0;
+  }
+
+  // Method to display
+  void display() {
+    ellipseMode(CENTER);
+    stroke(255,timer);
+    fill(255,timer);
+    text(s, loc.x, loc.y); 
+  }
+  
+  boolean isAlive() {
+    if (timer <= 0.0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
 }
 
 
@@ -594,6 +692,7 @@ void keyReleased(){
   else if (key == ' ') {
     // Fire!  She screamed!
     // TODO: Compute center of ship correctly
+    zapSound.trigger();
     particles.add(new phaserParticle(ship.x + 32, ship.y, 0 , -14));
   }
 }
